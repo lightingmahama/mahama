@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Global Book Explorer</title>
+   <style>
+    body {
+  font-family: 'Segoe UI', sans-serif;
+  background: linear-gradient(-45deg, #f0f9ff, #e0e7ff, #f9f4ff);
+  background-size: 600% 600%;
+  animation: gradientShift 15s ease infinite;
+  margin: 0;
+  padding: 20px;
+  overflow-x: hidden;
+}
+
+@keyframes gradientShift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+header {
+  text-align: center;
+  margin-bottom: 30px;
+}
+
+#searchInput {
+  padding: 12px;
+  width: 70%;
+  font-size: 16px;
+  border-radius: 5px;
+  border: 1px solid #ccc;
+  transition: box-shadow 0.3s ease;
+}
+#searchInput:focus {
+  box-shadow: 0 0 10px #0077cc;
+}
+
+#results {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 20px;
+}
+
+.book-card {
+  background-color: #fff;
+  padding: 15px;
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  animation: fadeInUp 0.6s ease;
+  transition: transform 0.3s;
+}
+.book-card:hover {
+  transform: scale(1.04);
+}
+
+.book-card img {
+  width: 100%;
+  max-height: 300px;
+  object-fit: cover;
+  border-radius: 5px;
+  animation: fadeImage 1.2s ease;
+}
+
+.book-card button {
+  margin-top: 10px;
+  padding: 8px 12px;
+  font-size: 14px;
+  cursor: pointer;
+  background-color: #0077cc;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  transition: background-color 0.3s ease;
+}
+.book-card button:hover {
+  background-color: #005fa3;
+}
+
+.book-preview {
+  margin-top: 10px;
+  animation: slideDown 0.5s ease;
+}
+
+.movie-box a {
+  color: #d13030;
+  text-decoration: none;
+  animation: pulse 1.2s infinite ease-in-out;
+}
+
+.searching {
+  animation: flashBorder 0.4s ease;
+}
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeImage {
+  from { opacity: 0; scale: 0.8; }
+  to { opacity: 1; scale: 1; }
+}
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+@keyframes flashBorder {
+  0% { border: 2px solid #0077cc; }
+  100% { border: 2px solid transparent; }
+}
+
+   </style>
+</head>
+<body>
+  <div class="background-layer"></div>
+
+  <main>
+    <header>
+      <h1>Global Book Explorer</h1>
+      <input type="text" id="searchInput" placeholder="Search for any book..." />
+    </header>
+
+    <section id="results" class="results-area"></section>
+  </main>
+
+  <script >
+   const searchInput = document.getElementById("searchInput");
+const resultsSection = document.getElementById("results");
+
+const knownAdaptations = {
+  "Pride and Prejudice": "https://www.themoviedb.org/movie/209",
+  "Frankenstein": "https://www.themoviedb.org/movie/169",
+  "Jane Eyre": "https://www.themoviedb.org/movie/45690"
+};
+
+function animateSearch() {
+  resultsSection.classList.remove("searching");
+  void resultsSection.offsetWidth; // trigger reflow
+  resultsSection.classList.add("searching");
+}
+
+searchInput.addEventListener("input", async (e) => {
+  const query = e.target.value.trim();
+  if (query.length >= 3) {
+    animateSearch();
+    const books = await fetchBooks(query);
+    displayBooks(books);
+  }
+});
+
+async function fetchBooks(query) {
+  const response = await fetch(`https://openlibrary.org/search.json?q=${encodeURIComponent(query)}`);
+  const data = await response.json();
+  return data.docs.slice(0, 30); // more books
+}
+
+async function displayBooks(books) {
+  resultsSection.innerHTML = "";
+  for (const book of books) {
+    const title = book.title;
+    const authors = book.author_name ? book.author_name.join(", ") : "Unknown";
+    const coverId = book.cover_i;
+    const key = book.key;
+    const coverURL = coverId
+      ? `https://covers.openlibrary.org/b/id/${coverId}-L.jpg`
+      : "https://via.placeholder.com/150x200?text=No+Cover";
+
+    const card = document.createElement("div");
+    card.className = "book-card";
+    card.innerHTML = `
+      <img src="${coverURL}" alt="${title}" />
+      <h3>${title}</h3>
+      <p>Author: ${authors}</p>
+      <button onclick="loadBookDetails('${key}', '${title}')">Read Book</button>
+      <div class="book-preview" id="preview-${key}"></div>
+      <div class="movie-box" id="movie-${key}"></div>
+    `;
+    resultsSection.appendChild(card);
+
+    fetchMovieLink(title, key);
+  }
+}
+
+async function loadBookDetails(key, title) {
+  const previewBox = document.getElementById(`preview-${key}`);
+  previewBox.innerHTML = `
+    <p><strong>${title}</strong></p>
+    <iframe src="https://openlibrary.org${key}" width="100%" height="400px" style="border:none;"></iframe>
+  `;
+}
+
+async function fetchMovieLink(title, bookId) {
+  if (knownAdaptations[title]) {
+    const movieBox = document.getElementById(`movie-${bookId}`);
+    movieBox.innerHTML = `<p><a href="${knownAdaptations[title]}" target="_blank">🎬 Watch Movie Adaptation</a></p>`;
+  }
+}
+
+// Preload highly rated titles
+window.addEventListener("load", async () => {
+  const trendingTitles = Object.keys(knownAdaptations);
+  for (let title of trendingTitles) {
+    const books = await fetchBooks(title);
+    displayBooks(books); // optional: group separately if desired
+  }
+});
+
+  </script>
+</body>
+</html>
